@@ -1,0 +1,83 @@
+plugins {
+    id 'java'
+}
+
+group 'org.example'
+version '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+apply plugin: 'jacoco'
+
+dependencies {
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.1'
+// https://mvnrepository.com/artifact/org.projectlombok/lombok
+    compileOnly group: 'org.projectlombok', name: 'lombok', version: '1.18.24'
+    testImplementation group: 'org.projectlombok', name: 'lombok', version: '1.18.24'
+    annotationProcessor group: 'org.projectlombok', name: 'lombok', version: '1.18.24'
+}
+test {
+    useJUnitPlatform()
+
+    dependsOn 'cleanTest'
+
+    testLogging {
+        events 'passed', 'skipped', 'failed'
+    }
+
+}
+
+
+
+
+//plugins {
+//    id 'jacoco'
+//}
+
+jacocoTestReport {
+    reports {
+        xml.enabled = true
+        html.enabled = true
+    }
+    doLast {
+        def report = file("${jacoco.reportsDir}/test/jacocoTestReport.xml")
+        printCoverage(report)
+    }
+}
+
+
+
+def printCoverage(File xml) {
+    if (!xml.exists()) return
+
+    def parser = new XmlParser()
+    parser.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false)
+    parser.setFeature("http://apache.org/xml/features/disallow-doctype-decl", false)
+    def results = parser.parse(xml)
+
+    def percentage = {
+        def covered = it.'@covered' as Double
+        def missed = it.'@missed' as Double
+        ((covered / (covered + missed)) * 100).round(2)
+    }
+
+    def counters = results.counter
+    def metrics = [
+            'instruction': percentage(counters.find { it.'@type'.equals('INSTRUCTION') }),
+            'branch'     : percentage(counters.find { it.'@type'.equals('BRANCH') }),
+            'line'       : percentage(counters.find { it.'@type'.equals('LINE') }),
+            'complexity' : percentage(counters.find { it.'@type'.equals('COMPLEXITY') }),
+            'method'     : percentage(counters.find { it.'@type'.equals('METHOD') }),
+            'class'      : percentage(counters.find { it.'@type'.equals('CLASS') })
+    ]
+
+    logger.quiet("----- Code Coverage ----------")
+    metrics.each { key, value -> logger.quiet(sprintf(" - %-11s: %6.2f%%", key, value)) }
+    logger.quiet("------------------------------")
+}
+
+test.finalizedBy jacocoTestCoverageVerification
+test.finalizedBy jacocoTestReport
